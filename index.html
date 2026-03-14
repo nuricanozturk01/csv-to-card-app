@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flashcard Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;700;800&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#0e0e12;--surface:#16161c;--surface2:#1e1e26;--border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.14);--text:#f0f0f0;--muted:rgba(255,255,255,0.45);--accent:#7c6ef7;--radius:12px;}
+body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif;min-height:100vh;padding:2rem;}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:2.5rem;flex-wrap:wrap;gap:1rem;}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;letter-spacing:-0.03em;color:#fff;}
+.logo span{color:var(--accent);}
+.header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.tabs{display:flex;gap:4px;margin-bottom:2rem;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;width:fit-content;}
+.tab{padding:8px 18px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:none;color:var(--muted);transition:all .15s;font-family:'Space Grotesk',sans-serif;}
+.tab.active{background:var(--accent);color:#fff;}
+.tab:hover:not(.active){color:var(--text);}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:8px;font-size:13px;font-family:'Space Grotesk',sans-serif;font-weight:500;cursor:pointer;transition:all .15s;border:1px solid var(--border);background:rgba(255,255,255,0.05);color:var(--text);}
+.btn:hover{background:rgba(255,255,255,0.1);border-color:var(--border2);}
+.btn.primary{background:var(--accent);border-color:transparent;color:#fff;}
+.btn.primary:hover{background:#6a5de0;}
+.btn.danger{background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.3);color:#f87171;}
+.btn.danger:hover{background:rgba(239,68,68,0.2);}
+.btn:disabled{opacity:.3;cursor:not-allowed;}
+.btn.sm{padding:5px 11px;font-size:12px;}
+select,input[type=text]{appearance:none;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,0.05);color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:13px;}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='rgba(255,255,255,0.4)' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:32px;}
+input[type=color]{width:44px;height:36px;padding:3px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,0.05);cursor:pointer;}
+.control-bar{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:2rem;padding:1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);}
+.control-group{display:flex;flex-direction:column;gap:6px;}
+.control-label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:500;}
+.tpl-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:2rem;}
+.tpl-option{width:80px;height:80px;border-radius:10px;cursor:pointer;border:2px solid transparent;transition:all .2s;position:relative;overflow:hidden;flex-shrink:0;}
+.tpl-option:hover{transform:scale(1.06);}
+.tpl-option.active{border-color:#fff;box-shadow:0 0 0 1px rgba(255,255,255,0.3);}
+.tpl-option .tpl-name{position:absolute;bottom:0;left:0;right:0;padding:4px 6px;font-size:9px;font-weight:600;text-align:center;background:rgba(0,0,0,0.55);color:#fff;text-transform:uppercase;letter-spacing:.05em;}
+.tpl-custom-badge{position:absolute;top:4px;right:4px;width:14px;height:14px;background:var(--accent);border-radius:50%;font-size:8px;color:#fff;display:flex;align-items:center;justify-content:center;}
+.drop-zone{border:1px dashed rgba(255,255,255,0.15);border-radius:var(--radius);padding:3rem 2rem;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:2rem;}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:rgba(124,110,247,0.05);}
+.drop-zone.hidden{display:none;}
+.drop-icon{font-size:2.5rem;margin-bottom:1rem;opacity:.4;}
+.drop-title{font-size:1rem;font-weight:500;margin-bottom:.5rem;}
+.drop-sub{font-size:.8rem;color:var(--muted);}
+.sample-link{color:var(--accent);font-size:.8rem;margin-top:1rem;display:inline-block;cursor:pointer;}
+.sample-link:hover{text-decoration:underline;}
+.stats-bar{display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;font-size:13px;color:var(--muted);}
+.stats-bar.hidden{display:none;}
+.stat-pill{background:rgba(255,255,255,0.06);border:1px solid var(--border);padding:4px 12px;border-radius:100px;font-size:12px;}
+.progress-wrap{display:none;margin-bottom:1rem;}
+.progress-bar-el{height:3px;background:rgba(255,255,255,0.1);border-radius:100px;overflow:hidden;}
+.progress-fill{height:100%;background:var(--accent);border-radius:100px;transition:width .2s;width:0%;}
+.progress-label{font-size:12px;color:var(--muted);margin-top:6px;text-align:center;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;}
+.card-preview{border-radius:12px;overflow:hidden;position:relative;cursor:pointer;}
+.card-preview canvas{display:block;width:100%;height:auto;border-radius:12px;}
+.card-dl-btn{position:absolute;bottom:10px;right:10px;padding:4px 10px;font-size:11px;border-radius:6px;cursor:pointer;font-family:'Space Grotesk',sans-serif;font-weight:500;border:1px solid rgba(255,255,255,0.3);background:rgba(0,0,0,0.5);color:#fff;backdrop-filter:blur(4px);}
+.card-dl-btn:hover{background:rgba(0,0,0,0.7);}
+.builder{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;margin-bottom:2rem;}
+.builder-title{font-size:14px;font-weight:600;margin-bottom:1.25rem;}
+.builder-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;}
+.builder-section{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1rem;}
+.builder-section-title{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;margin-bottom:1rem;}
+.field-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;}
+.field-label{font-size:12px;color:var(--muted);white-space:nowrap;flex-shrink:0;}
+.field-right{display:flex;align-items:center;gap:8px;}
+.gradient-presets{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
+.grad-preset{width:32px;height:32px;border-radius:6px;cursor:pointer;border:2px solid transparent;transition:all .15s;flex-shrink:0;}
+.grad-preset:hover,.grad-preset.active{border-color:#fff;}
+.name-input-row{display:flex;gap:8px;margin-bottom:1rem;align-items:flex-end;}
+.name-input-row .control-group{flex:1;}
+.saved-templates{margin-top:1.5rem;}
+.saved-tpl-row{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;}
+.saved-tpl-swatch{width:32px;height:32px;border-radius:6px;flex-shrink:0;}
+.saved-tpl-name{font-size:13px;flex:1;}
+@media(max-width:640px){.builder-grid{grid-template-columns:1fr;}.tpl-option{width:64px;height:64px;}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">flash<span>.</span>gen</div>
+  <div class="header-right">
+    <span id="statsText" style="font-size:13px;color:var(--muted);"></span>
+    <button class="btn primary" id="exportBtn" disabled>↓ ZIP İndir</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="main">Kartlar</button>
+  <button class="tab" data-tab="builder">Şablon Oluştur</button>
+</div>
+
+<!-- MAIN TAB -->
+<div class="tab-panel active" id="tab-main">
+  <div style="margin-bottom:.75rem;">
+    <div class="control-label" style="margin-bottom:10px;">Şablon Seç</div>
+    <div class="tpl-row" id="templatePicker"></div>
+  </div>
+  <div class="control-bar">
+    <div class="control-group">
+      <div class="control-label">Yazı Tipi</div>
+      <select id="fontSelect">
+        <option value="Space Grotesk">Space Grotesk</option>
+        <option value="Georgia">Georgia (Serif)</option>
+        <option value="monospace">Monospace</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <div class="control-label">Logo / Etiket</div>
+      <input type="text" id="brandLabel" placeholder="@hesabım" style="width:160px;">
+    </div>
+    <div class="control-group" style="margin-left:auto;">
+      <div class="control-label">CSV Yükle</div>
+      <label class="btn">↑ Dosya Seç<input type="file" accept=".csv" id="csvInput" style="display:none"></label>
+    </div>
+  </div>
+  <div class="drop-zone" id="dropZone">
+    <div class="drop-icon">⬡</div>
+    <div class="drop-title">CSV dosyasını buraya bırak</div>
+    <div class="drop-sub">Format: <code style="color:var(--accent)">question,answer</code> veya <code style="color:var(--accent)">front,back</code></div>
+    <div><span class="sample-link" id="sampleBtn">→ Örnek verilerle başla</span></div>
+  </div>
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar-el"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-label" id="progressLabel"></div>
+  </div>
+  <div class="stats-bar hidden" id="statsBar">
+    <span id="cardCount" class="stat-pill"></span>
+    <span style="font-size:12px;color:var(--muted);">Tek kart indirmek için kart üzerindeki ↓ butonuna bas</span>
+    <span style="margin-left:auto;"><button class="btn sm" id="resetBtn">× Sıfırla</button></span>
+  </div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<!-- BUILDER TAB -->
+<div class="tab-panel" id="tab-builder">
+  <div class="builder">
+    <div class="builder-title">Özel Şablon Oluştur</div>
+    <div class="name-input-row">
+      <div class="control-group">
+        <div class="control-label">Şablon Adı</div>
+        <input type="text" id="tplName" placeholder="Örn: Gece Mavisi" maxlength="24" style="width:100%;">
+      </div>
+      <button class="btn primary" id="saveTplBtn">Kaydet</button>
+    </div>
+    <div class="builder-grid">
+      <div class="builder-section">
+        <div class="builder-section-title">Arkaplan Gradyanı</div>
+        <div class="field-row"><span class="field-label">Renk 1</span><div class="field-right"><input type="color" id="f_c1" value="#0f0c29"><span id="f_c1_hex" style="font-size:11px;color:var(--muted);font-family:monospace">#0f0c29</span></div></div>
+        <div class="field-row"><span class="field-label">Renk 2</span><div class="field-right"><input type="color" id="f_c2" value="#302b63"><span id="f_c2_hex" style="font-size:11px;color:var(--muted);font-family:monospace">#302b63</span></div></div>
+        <div class="field-row"><span class="field-label">Renk 3</span><div class="field-right"><input type="color" id="f_c3" value="#24243e"><span id="f_c3_hex" style="font-size:11px;color:var(--muted);font-family:monospace">#24243e</span></div></div>
+        <div class="field-row"><span class="field-label">Vurgu Rengi</span><div class="field-right"><input type="color" id="f_accent" value="#a78bfa"><span id="f_accent_hex" style="font-size:11px;color:var(--muted);font-family:monospace">#a78bfa</span></div></div>
+        <div class="field-row"><span class="field-label">Soru Rengi</span><div class="field-right"><input type="color" id="f_qtext" value="#ffffff"><span id="f_qtext_hex" style="font-size:11px;color:var(--muted);font-family:monospace">#ffffff</span></div></div>
+        <div class="field-row"><span class="field-label">Cevap Rengi</span><div class="field-right"><input type="color" id="f_atext" value="#c4b5fd"><span id="f_atext_hex" style="font-size:11px;color:var(--muted);font-family:monospace">#c4b5fd</span></div></div>
+        <div class="field-row"><span class="field-label">Ayraç Rengi</span><div class="field-right"><input type="color" id="f_divider" value="#a78bfa"><span id="f_divider_hex" style="font-size:11px;color:var(--muted);font-family:monospace">#a78bfa</span></div></div>
+      </div>
+      <div class="builder-section">
+        <div class="builder-section-title">Hızlı Renk Setleri</div>
+        <div class="gradient-presets" id="gradPresets"></div>
+        <div style="margin-top:1.5rem;">
+          <div class="builder-section-title">Önizleme</div>
+          <canvas id="previewCanvas" style="width:100%;border-radius:10px;display:block;"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="saved-templates" id="savedTemplates"></div>
+</div>
+
+<script>
+// ─── TEMPLATES ───────────────────────────────────────────────────────────────
+const BUILTIN = [
+  { id:'midnight', name:'Midnight', c1:'#0f0c29', c2:'#302b63', c3:'#24243e', accent:'#a78bfa', qtext:'#ffffff', atext:'#c4b5fd', divider:'#a78bfa' },
+  { id:'aurora',   name:'Aurora',   c1:'#0f2027', c2:'#203a43', c3:'#2c5364', accent:'#34d399', qtext:'#e0fff8', atext:'#6ee7b7', divider:'#34d399' },
+  { id:'ember',    name:'Ember',    c1:'#1a0500', c2:'#5a1200', c3:'#c44200', accent:'#fb923c', qtext:'#fff4ed', atext:'#fdba74', divider:'#fb923c' },
+  { id:'rose',     name:'Rose',     c1:'#1a0a0f', c2:'#4a1728', c3:'#8b3a4e', accent:'#f9a8c9', qtext:'#fff0f5', atext:'#fbb6ce', divider:'#f9a8c9' },
+  { id:'neon',     name:'Neon',     c1:'#050510', c2:'#0a0a2a', c3:'#000d1a', accent:'#00f5ff', qtext:'#e0ffff', atext:'#67e8f9', divider:'#00f5ff' },
+  { id:'forest',   name:'Forest',   c1:'#060f07', c2:'#122116', c3:'#1e4026', accent:'#86efac', qtext:'#f0fff4', atext:'#bbf7d0', divider:'#86efac' },
+  { id:'ocean',    name:'Ocean',    c1:'#001524', c2:'#003d5c', c3:'#005f73', accent:'#94d2bd', qtext:'#e9f5f3', atext:'#a8dadc', divider:'#94d2bd' },
+  { id:'gold',     name:'Gold',     c1:'#0a0700', c2:'#1f1500', c3:'#3d2c00', accent:'#d4af37', qtext:'#fffbf0', atext:'#e8c84a', divider:'#d4af37' },
+  { id:'slate',    name:'Slate',    c1:'#0f172a', c2:'#1e293b', c3:'#334155', accent:'#94a3b8', qtext:'#f8fafc', atext:'#cbd5e1', divider:'#94a3b8' },
+  { id:'candy',    name:'Candy',    c1:'#ff6b9d', c2:'#c084fc', c3:'#60a5fa', accent:'#ffffff', qtext:'#ffffff', atext:'#ffe0f0', divider:'rgba(255,255,255,0.6)' },
+  { id:'cotton',   name:'Cotton',   c1:'#fce4ec', c2:'#ede7f6', c3:'#e3f2fd', accent:'#7c3aed', qtext:'#1e1b4b', atext:'#4c1d95', divider:'#7c3aed' },
+  { id:'paper',    name:'Paper',    c1:'#f7f3ec', c2:'#ede8df', c3:'#ddd5c8', accent:'#92400e', qtext:'#1c1007', atext:'#78350f', divider:'#92400e' },
+];
+
+const GRAD_PRESETS = [
+  { name:'Midnight', c1:'#0f0c29', c2:'#302b63', c3:'#24243e', accent:'#a78bfa', qtext:'#ffffff', atext:'#c4b5fd', divider:'#a78bfa' },
+  { name:'Aurora',   c1:'#0f2027', c2:'#203a43', c3:'#2c5364', accent:'#34d399', qtext:'#e0fff8', atext:'#6ee7b7', divider:'#34d399' },
+  { name:'Ember',    c1:'#1a0500', c2:'#5a1200', c3:'#c44200', accent:'#fb923c', qtext:'#fff4ed', atext:'#fdba74', divider:'#fb923c' },
+  { name:'Okyanus',  c1:'#001524', c2:'#003d5c', c3:'#005f73', accent:'#94d2bd', qtext:'#e9f5f3', atext:'#a8dadc', divider:'#94d2bd' },
+  { name:'Altın',    c1:'#0a0700', c2:'#1f1500', c3:'#3d2c00', accent:'#d4af37', qtext:'#fffbf0', atext:'#e8c84a', divider:'#d4af37' },
+  { name:'Candy',    c1:'#ff6b9d', c2:'#c084fc', c3:'#60a5fa', accent:'#ffffff', qtext:'#ffffff', atext:'#ffe0f0', divider:'rgba(255,255,255,0.6)' },
+  { name:'Orman',    c1:'#060f07', c2:'#122116', c3:'#1e4026', accent:'#86efac', qtext:'#f0fff4', atext:'#bbf7d0', divider:'#86efac' },
+  { name:'Gül',      c1:'#1a0a0f', c2:'#4a1728', c3:'#8b3a4e', accent:'#f9a8c9', qtext:'#fff0f5', atext:'#fbb6ce', divider:'#f9a8c9' },
+  { name:'Slate',    c1:'#0f172a', c2:'#1e293b', c3:'#334155', accent:'#94a3b8', qtext:'#f8fafc', atext:'#cbd5e1', divider:'#94a3b8' },
+  { name:'Cotton',   c1:'#fce4ec', c2:'#ede7f6', c3:'#e3f2fd', accent:'#7c3aed', qtext:'#1e1b4b', atext:'#4c1d95', divider:'#7c3aed' },
+];
+
+const SAMPLE_CSV = `question,answer
+Helm nedir?,"Kubernetes için paket yöneticisi. Uygulamaları chart adı verilen paketler halinde dağıtır."
+Chart nedir?,"Kubernetes manifest'lerini parametrize eden paket yapısı. Chart.yaml + values.yaml + templates/ klasöründen oluşur."
+index.yaml ne işe yarar?,"Helm repository'sindeki tüm chart'ları listeleyen katalog dosyası."
+helm repo add ne yapar?,"Belirtilen URL'deki index.yaml'ı yerel Helm cache'ine kaydeder."
+OCI vs klasik repo farkı?,"Klasik: HTTP + index.yaml. OCI: Docker protokolü ile çalışır."
+Private repo neden gerekli?,"Şirket içi chart'ların gizliliği ve erişim kontrolü için."
+ChartMuseum nedir?,"Açık kaynak Helm chart repository server."`;
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let cards = [];
+let selectedTpl = BUILTIN[0];
+let selectedFont = 'Space Grotesk';
+let brandLabel = '';
+let allTemplates = [...BUILTIN];
+
+function loadCustom() {
+  try {
+    const s = JSON.parse(localStorage.getItem('fg_custom') || '[]');
+    s.forEach(t => { if (!allTemplates.find(x => x.id === t.id)) allTemplates.push(t); });
+  } catch(e) {}
+}
+function saveCustom() {
+  localStorage.setItem('fg_custom', JSON.stringify(allTemplates.filter(t => t.custom)));
+}
+loadCustom();
+
+// ─── TABS ─────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'builder') { renderSaved(); drawPreview(); }
+  });
+});
+
+// ─── CSV PARSE ────────────────────────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const result = [];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim(); if (!line) continue;
+    const parts = []; let inQ = false, cur = '';
+    for (let c = 0; c < line.length; c++) {
+      const ch = line[c];
+      if (ch === '"' && !inQ) { inQ = true; }
+      else if (ch === '"' && inQ && line[c+1] === '"') { cur += '"'; c++; }
+      else if (ch === '"' && inQ) { inQ = false; }
+      else if (ch === ',' && !inQ) { parts.push(cur.trim()); cur = ''; }
+      else { cur += ch; }
+    }
+    parts.push(cur.trim());
+    if (parts.length >= 2) result.push({ front: parts[0], back: parts.slice(1).join(',') });
+  }
+  return result;
+}
+
+// ─── CANVAS DRAW ─────────────────────────────────────────────────────────────
+const SIZE = 1080;
+
+function hexToRgba(hex, alpha) {
+  // handles rgba(...) strings too
+  if (hex.startsWith('rgba')) return hex;
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+  const words = text.split(' ');
+  let line = '';
+  const lines = [];
+  for (let i = 0; i < words.length; i++) {
+    const testLine = line + words[i] + ' ';
+    if (ctx.measureText(testLine).width > maxWidth && i > 0) {
+      lines.push(line.trim());
+      line = words[i] + ' ';
+    } else { line = testLine; }
+  }
+  lines.push(line.trim());
+  lines.forEach((l, i) => ctx.fillText(l, x, y + i * lineHeight));
+  return lines.length;
+}
+
+function drawCard(tpl, card, idx, font, brand) {
+  const canvas = document.createElement('canvas');
+  canvas.width = SIZE; canvas.height = SIZE;
+  const ctx = canvas.getContext('2d');
+  const pad = 80;
+
+  // Background gradient
+  const grad = ctx.createLinearGradient(0, 0, SIZE, SIZE);
+  grad.addColorStop(0, tpl.c1);
+  grad.addColorStop(0.5, tpl.c2);
+  grad.addColorStop(1, tpl.c3);
+  ctx.fillStyle = grad;
+  // Rounded rect
+  const r = 40;
+  ctx.beginPath();
+  ctx.moveTo(r, 0); ctx.lineTo(SIZE-r, 0); ctx.quadraticCurveTo(SIZE, 0, SIZE, r);
+  ctx.lineTo(SIZE, SIZE-r); ctx.quadraticCurveTo(SIZE, SIZE, SIZE-r, SIZE);
+  ctx.lineTo(r, SIZE); ctx.quadraticCurveTo(0, SIZE, 0, SIZE-r);
+  ctx.lineTo(0, r); ctx.quadraticCurveTo(0, 0, r, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Subtle deco circles
+  ctx.beginPath();
+  ctx.arc(SIZE - 60, 60, 180, 0, Math.PI*2);
+  ctx.fillStyle = hexToRgba(tpl.accent, 0.06);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(60, SIZE - 60, 120, 0, Math.PI*2);
+  ctx.fillStyle = hexToRgba(tpl.accent, 0.04);
+  ctx.fill();
+
+  const fontStack = font + ', sans-serif';
+  const availW = SIZE - pad * 2;
+
+  // ── QUESTION LABEL ──
+  ctx.fillStyle = tpl.accent;
+  ctx.font = `500 ${28}px ${fontStack}`;
+  ctx.letterSpacing = '3px';
+  ctx.fillText('SORU', pad, pad + 28);
+  ctx.letterSpacing = '0px';
+
+  // ── QUESTION NUMBER (top right) ──
+  ctx.fillStyle = hexToRgba(tpl.accent, 0.35);
+  ctx.font = `400 ${28}px 'monospace'`;
+  ctx.textAlign = 'right';
+  ctx.fillText(String(idx + 1).padStart(2, '0'), SIZE - pad, pad + 28);
+  ctx.textAlign = 'left';
+
+  // ── QUESTION TEXT ──
+  ctx.fillStyle = tpl.qtext;
+  ctx.font = `600 ${54}px ${fontStack}`;
+  const qLines = wrapText(ctx, card.front, pad, pad + 100, availW, 70);
+
+  // ── DIVIDER LINE ──
+  const dividerY = pad + 100 + qLines * 70 + 40;
+  ctx.beginPath();
+  ctx.moveTo(pad, dividerY);
+  ctx.lineTo(pad + 120, dividerY);
+  ctx.strokeStyle = tpl.divider;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // ── ANSWER LABEL ──
+  ctx.fillStyle = tpl.accent;
+  ctx.font = `500 ${24}px ${fontStack}`;
+  ctx.letterSpacing = '3px';
+  ctx.fillText('CEVAP', pad, dividerY + 52);
+  ctx.letterSpacing = '0px';
+
+  // ── ANSWER TEXT ──
+  ctx.fillStyle = tpl.atext;
+  ctx.font = `400 ${40}px ${fontStack}`;
+  wrapText(ctx, card.back, pad, dividerY + 52 + 60, availW, 56);
+
+  // ── BRAND LABEL (bottom) ──
+  if (brand) {
+    ctx.fillStyle = hexToRgba(tpl.accent, 0.5);
+    ctx.font = `500 22px ${fontStack}`;
+    ctx.textAlign = 'right';
+    ctx.fillText(brand, SIZE - pad, SIZE - pad);
+    ctx.textAlign = 'left';
+  }
+
+  return canvas;
+}
+
+// ─── TEMPLATE PICKER ─────────────────────────────────────────────────────────
+function buildPicker() {
+  const picker = document.getElementById('templatePicker');
+  picker.innerHTML = '';
+  allTemplates.forEach(tpl => {
+    const el = document.createElement('div');
+    el.className = 'tpl-option' + (tpl.id === selectedTpl.id ? ' active' : '');
+    // Mini canvas for preview
+    const previewCanvas = document.createElement('canvas');
+    previewCanvas.width = 80; previewCanvas.height = 80;
+    const pctx = previewCanvas.getContext('2d');
+    const pg = pctx.createLinearGradient(0, 0, 80, 80);
+    pg.addColorStop(0, tpl.c1); pg.addColorStop(0.5, tpl.c2); pg.addColorStop(1, tpl.c3);
+    pctx.fillStyle = pg; pctx.fillRect(0, 0, 80, 80);
+    previewCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;';
+    el.appendChild(previewCanvas);
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'tpl-name';
+    nameDiv.textContent = tpl.name;
+    el.appendChild(nameDiv);
+    if (tpl.custom) {
+      const badge = document.createElement('div');
+      badge.className = 'tpl-custom-badge';
+      badge.textContent = '★';
+      el.appendChild(badge);
+    }
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.tpl-option').forEach(x => x.classList.remove('active'));
+      el.classList.add('active');
+      selectedTpl = tpl;
+      if (cards.length) renderGrid();
+    });
+    picker.appendChild(el);
+  });
+}
+buildPicker();
+
+// ─── RENDER GRID ─────────────────────────────────────────────────────────────
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  cards.forEach((card, i) => {
+    const canvas = drawCard(selectedTpl, card, i, selectedFont, brandLabel);
+    const wrap = document.createElement('div');
+    wrap.className = 'card-preview';
+    canvas.style.cssText = 'display:block;width:100%;height:auto;border-radius:12px;';
+    const dlBtn = document.createElement('button');
+    dlBtn.className = 'card-dl-btn';
+    dlBtn.textContent = '↓ PNG';
+    dlBtn.addEventListener('click', () => {
+      const a = document.createElement('a');
+      a.download = `kart-${String(i+1).padStart(2,'0')}.png`;
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    });
+    wrap.appendChild(canvas);
+    wrap.appendChild(dlBtn);
+    grid.appendChild(wrap);
+  });
+}
+
+function showCards() {
+  document.getElementById('dropZone').classList.add('hidden');
+  document.getElementById('statsBar').classList.remove('hidden');
+  document.getElementById('cardCount').textContent = `${cards.length} kart`;
+  document.getElementById('statsText').textContent = `${cards.length} kart`;
+  document.getElementById('exportBtn').disabled = false;
+  renderGrid();
+}
+
+// ─── ZIP EXPORT ───────────────────────────────────────────────────────────────
+async function exportZip() {
+  const btn = document.getElementById('exportBtn');
+  const pw = document.getElementById('progressWrap');
+  const pf = document.getElementById('progressFill');
+  const pl = document.getElementById('progressLabel');
+  btn.disabled = true; pw.style.display = 'block';
+  const zip = new JSZip();
+  for (let i = 0; i < cards.length; i++) {
+    pl.textContent = `Hazırlanıyor ${i+1}/${cards.length}...`;
+    pf.style.width = ((i+1)/cards.length*100) + '%';
+    btn.textContent = `⏳ ${i+1}/${cards.length}`;
+    const canvas = drawCard(selectedTpl, cards[i], i, selectedFont, brandLabel);
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+    zip.file(`kart-${String(i+1).padStart(2,'0')}.png`, blob);
+    await new Promise(r => setTimeout(r, 10));
+  }
+  pl.textContent = 'ZIP oluşturuluyor...';
+  const zipBlob = await zip.generateAsync({ type: 'blob' });
+  const a = document.createElement('a'); a.download = 'kartlar.zip'; a.href = URL.createObjectURL(zipBlob); a.click();
+  pw.style.display = 'none'; pf.style.width = '0%';
+  btn.disabled = false; btn.textContent = '↓ ZIP İndir';
+}
+
+// ─── EVENT LISTENERS ─────────────────────────────────────────────────────────
+document.getElementById('csvInput').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => { cards = parseCSV(ev.target.result); if (cards.length) showCards(); };
+  reader.readAsText(file, 'UTF-8');
+});
+document.getElementById('sampleBtn').addEventListener('click', () => { cards = parseCSV(SAMPLE_CSV); showCards(); });
+document.getElementById('exportBtn').addEventListener('click', exportZip);
+document.getElementById('resetBtn').addEventListener('click', () => {
+  cards = [];
+  document.getElementById('grid').innerHTML = '';
+  document.getElementById('dropZone').classList.remove('hidden');
+  document.getElementById('statsBar').classList.add('hidden');
+  document.getElementById('statsText').textContent = '';
+  document.getElementById('exportBtn').disabled = true;
+});
+document.getElementById('fontSelect').addEventListener('change', e => { selectedFont = e.target.value; if (cards.length) renderGrid(); });
+document.getElementById('brandLabel').addEventListener('input', e => { brandLabel = e.target.value; if (cards.length) renderGrid(); });
+
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => { cards = parseCSV(ev.target.result); if (cards.length) showCards(); };
+  reader.readAsText(file, 'UTF-8');
+});
+
+// ─── BUILDER ─────────────────────────────────────────────────────────────────
+const builderFields = [
+  {id:'f_c1',hex:'f_c1_hex'},{id:'f_c2',hex:'f_c2_hex'},{id:'f_c3',hex:'f_c3_hex'},
+  {id:'f_accent',hex:'f_accent_hex'},{id:'f_qtext',hex:'f_qtext_hex'},
+  {id:'f_atext',hex:'f_atext_hex'},{id:'f_divider',hex:'f_divider_hex'},
+];
+builderFields.forEach(({id, hex}) => {
+  document.getElementById(id).addEventListener('input', e => {
+    document.getElementById(hex).textContent = e.target.value;
+    drawPreview();
+  });
+});
+
+function getBuilderTpl() {
+  const g = id => document.getElementById(id).value;
+  return { id:'preview', name:'Önizleme', c1:g('f_c1'), c2:g('f_c2'), c3:g('f_c3'), accent:g('f_accent'), qtext:g('f_qtext'), atext:g('f_atext'), divider:g('f_divider') };
+}
+
+function drawPreview() {
+  const tpl = getBuilderTpl();
+  const sampleCard = { front: 'Helm Chart Repository nedir?', back: 'Helm chart\'larını barındıran HTTP server. index.yaml ile katalog tutar.' };
+  const canvas = drawCard(tpl, sampleCard, 0, selectedFont, '@hesabım');
+  const previewEl = document.getElementById('previewCanvas');
+  previewEl.width = canvas.width; previewEl.height = canvas.height;
+  previewEl.getContext('2d').drawImage(canvas, 0, 0);
+}
+
+// Gradient presets
+const gp = document.getElementById('gradPresets');
+GRAD_PRESETS.forEach(p => {
+  const el = document.createElement('div');
+  el.className = 'grad-preset'; el.title = p.name;
+  el.style.background = `linear-gradient(135deg,${p.c1},${p.c2},${p.c3})`;
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.grad-preset').forEach(x => x.classList.remove('active'));
+    el.classList.add('active');
+    const sc = (id, hid, val) => { document.getElementById(id).value = val; document.getElementById(hid).textContent = val; };
+    sc('f_c1','f_c1_hex',p.c1); sc('f_c2','f_c2_hex',p.c2); sc('f_c3','f_c3_hex',p.c3);
+    sc('f_accent','f_accent_hex',p.accent); sc('f_qtext','f_qtext_hex',p.qtext);
+    sc('f_atext','f_atext_hex',p.atext); sc('f_divider','f_divider_hex',p.divider);
+    drawPreview();
+  });
+  gp.appendChild(el);
+});
+
+document.getElementById('saveTplBtn').addEventListener('click', () => {
+  const name = document.getElementById('tplName').value.trim();
+  if (!name) { alert('Şablon adı girin.'); return; }
+  const tpl = { ...getBuilderTpl(), id: 'custom_' + Date.now(), name, custom: true };
+  allTemplates.push(tpl); saveCustom(); buildPicker(); renderSaved();
+  document.getElementById('tplName').value = '';
+  selectedTpl = tpl;
+  if (cards.length) renderGrid();
+});
+
+function renderSaved() {
+  const container = document.getElementById('savedTemplates');
+  const custom = allTemplates.filter(t => t.custom);
+  if (!custom.length) { container.innerHTML = '<div style="font-size:13px;color:var(--muted);margin-top:1rem;">Henüz kayıtlı özel şablon yok.</div>'; return; }
+  container.innerHTML = `<div class="control-label" style="margin-bottom:10px;">Kayıtlı Özel Şablonlar</div>`;
+  custom.forEach(tpl => {
+    const row = document.createElement('div'); row.className = 'saved-tpl-row';
+    const swatch = document.createElement('div');
+    swatch.className = 'saved-tpl-swatch';
+    swatch.style.background = `linear-gradient(135deg,${tpl.c1},${tpl.c2},${tpl.c3})`;
+    row.appendChild(swatch);
+    row.innerHTML += `<div class="saved-tpl-name">${tpl.name}</div><button class="btn sm" data-use="${tpl.id}">Kullan</button><button class="btn sm danger" data-del="${tpl.id}">Sil</button>`;
+    row.querySelector('[data-use]').addEventListener('click', () => { selectedTpl = tpl; buildPicker(); if (cards.length) renderGrid(); document.querySelector('.tab[data-tab="main"]').click(); });
+    row.querySelector('[data-del]').addEventListener('click', () => { allTemplates = allTemplates.filter(t => t.id !== tpl.id); saveCustom(); buildPicker(); renderSaved(); });
+    container.appendChild(row);
+  });
+}
+
+drawPreview();
+renderSaved();
+</script>
+</body>
+</html>
